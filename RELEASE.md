@@ -42,7 +42,6 @@
     package without explicit Tensorflow dependency.
 
 ## Bug fixes and other changes
-
 *   Introduced dependency to `tensorflow-cloud` Python package, with intention
     to separate out Google Cloud Platform specific extensions.
 *   Depends on `tensorflow-cloud>=0.1,<0.2`.
@@ -56,6 +55,8 @@
 *   Fixed an issue with Transform cache and beam 2.24-2.25 in an interactive
     notebook that caused it to fail.
 *   Scripts - run_component - Added a way to output artifact properties.
+*   Added a new template, 'iris' which is simple subset of existing iris
+    examples, with a focus for easy ingestion of user's own data.
 
 ### For pipeline authors
 
