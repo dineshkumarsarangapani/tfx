@@ -26,7 +26,7 @@ import tensorflow as tf
 from tfx.dsl.io import fileio
 from tfx.examples.chicago_taxi_pipeline import taxi_pipeline_warmstart
 from tfx.orchestration import metadata
-from tfx.orchestration.beam.beam_dag_runner import BeamDagRunner
+from tfx.orchestration.portable.beam_dag_runner import BeamDagRunner
 
 
 class TaxiPipelineWarmstartEndToEndTest(tf.test.TestCase):

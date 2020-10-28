@@ -14,13 +14,87 @@
 """Placeholders represent not-yet-available values at the component authoring time."""
 
 import abc
-import enum
-from typing import Optional, Union, cast
-from tfx import types
-from tfx.proto.orchestration import placeholder_pb2
-from tfx.utils import proto_utils
+from typing import cast
+from typing import Union
 
-from google.protobuf import message
+from tfx.proto.orchestration import placeholder_pb2
+
+
+def input(key: str) -> 'ArtifactPlaceholder':  # pylint: disable=redefined-builtin
+  """Returns a Placeholder that represents an input artifact.
+
+  Args:
+    key: The key of the input artifact.
+
+  Returns:
+    A Placeholder that supports
+      1. Rendering the whole MLMD artifact proto as text_format.
+         Example: input('model')
+      2. Accessing a specific index using [index], if multiple artifacts are
+         associated with the given key.
+         Example: input('model')[0]
+      3. Getting the URI of an artifact through .uri property.
+         Example: input('model').uri or input('model')[0].uri
+      4. Getting the URI of a specific split of an artifact using
+         .split_uri(split_name) method.
+         Example: input('examples')[0].split_uri('train')
+      5. Getting the value of a primitive artifact through .value property.
+         Example: input('primitive').value
+      6. Concatenating with other placeholders or strings.
+         Example: input('model').uri + '/model/' + exec_property('version')
+  """
+  return ArtifactPlaceholder(placeholder_pb2.Placeholder.Type.INPUT_ARTIFACT,
+                             key)
+
+
+def output(key: str) -> 'ArtifactPlaceholder':
+  """Returns a Placeholder that represents an output artifact.
+
+  It is the same as input(...) function, except it is for output artifacts.
+
+  Args:
+    key: The key of the output artifact.
+
+  Returns:
+    A Placeholder that supports
+      1. Rendering the whole artifact as text_format.
+         Example: output('model')
+      2. Accessing a specific index using [index], if multiple artifacts are
+         associated with the given key.
+         Example: output('model')[0]
+      3. Getting the URI of an artifact through .uri property.
+         Example: output('model').uri or output('model')[0].uri
+      4. Getting the URI of a specific split of an artifact using
+         .split_uri(split_name) method.
+         Example: output('examples')[0].split_uri('train')
+      5. Getting the value of a primitive artifact through .value property.
+         Example: output('primitive').value
+      6. Concatenating with other placeholders or strings.
+         Example: output('model').uri + '/model/' + exec_property('version')
+  """
+  return ArtifactPlaceholder(placeholder_pb2.Placeholder.Type.OUTPUT_ARTIFACT,
+                             key)
+
+
+def exec_property(key: str) -> 'ExecPropertyPlaceholder':
+  """Returns a Placeholder that represents an execution property.
+
+  Args:
+    key: The key of the output artifact.
+
+  Returns:
+    A Placeholder that supports
+      1. Rendering the value of an execution property at a given key.
+         Example: exec_property('version')
+      2. Rendering the whole proto or a proto field of an execution property,
+         if the value is a proto type.
+         The (possibly nested) proto field in a placeholder can be accessed as
+         if accessing a proto field in Python.
+         Example: exec_property('model_config').num_layers
+      3. Concatenating with other placeholders or strings.
+         Example: output('model').uri + '/model/' + exec_property('version')
+  """
+  return ExecPropertyPlaceholder(key)
 
 
 class _PlaceholderOperator(abc.ABC):
@@ -34,9 +108,7 @@ class _PlaceholderOperator(abc.ABC):
 
   @abc.abstractmethod
   def encode(
-      self,
-      sub_expression_pb: placeholder_pb2.PlaceholderExpression,
-      component_spec: types.ComponentSpec = None
+      self, sub_expression_pb: placeholder_pb2.PlaceholderExpression
   ) -> placeholder_pb2.PlaceholderExpression:
     pass
 
@@ -52,14 +124,11 @@ class _ArtifactUriOperator(_PlaceholderOperator):
     self._split = split
 
   def encode(
-      self,
-      sub_expression_pb: placeholder_pb2.PlaceholderExpression,
-      component_spec: Optional[types.ComponentSpec] = None
+      self, sub_expression_pb: placeholder_pb2.PlaceholderExpression
   ) -> placeholder_pb2.PlaceholderExpression:
-    del component_spec  # Unused by ArtifactUriOperator
-
     result = placeholder_pb2.PlaceholderExpression()
-    result.operator.artifact_uri_op.expression.CopyFrom(sub_expression_pb)
+    result.operator.artifact_uri_op.expression.CopyFrom(
+        sub_expression_pb)
     if self._split:
       result.operator.artifact_uri_op.split = self._split
     return result
@@ -72,14 +141,11 @@ class _ArtifactValueOperator(_PlaceholderOperator):
   """
 
   def encode(
-      self,
-      sub_expression_pb: placeholder_pb2.PlaceholderExpression,
-      component_spec: Optional[types.ComponentSpec] = None
+      self, sub_expression_pb: placeholder_pb2.PlaceholderExpression
   ) -> placeholder_pb2.PlaceholderExpression:
-    del component_spec  # Unused by ArtifactValueOperator
-
     result = placeholder_pb2.PlaceholderExpression()
-    result.operator.artifact_value_op.expression.CopyFrom(sub_expression_pb)
+    result.operator.artifact_value_op.expression.CopyFrom(
+        sub_expression_pb)
     return result
 
 
@@ -94,12 +160,8 @@ class _IndexOperator(_PlaceholderOperator):
     self._index = index
 
   def encode(
-      self,
-      sub_expression_pb: placeholder_pb2.PlaceholderExpression,
-      component_spec: Optional[types.ComponentSpec] = None
+      self, sub_expression_pb: placeholder_pb2.PlaceholderExpression
   ) -> placeholder_pb2.PlaceholderExpression:
-    del component_spec  # Unused by IndexOperator
-
     result = placeholder_pb2.PlaceholderExpression()
     result.operator.index_op.expression.CopyFrom(sub_expression_pb)
     result.operator.index_op.index = self._index
@@ -118,15 +180,12 @@ class _ConcatOperator(_PlaceholderOperator):
     self._right = right
 
   def encode(
-      self,
-      sub_expression_pb: placeholder_pb2.PlaceholderExpression,
-      component_spec: Optional[types.ComponentSpec] = None
+      self, sub_expression_pb: placeholder_pb2.PlaceholderExpression
   ) -> placeholder_pb2.PlaceholderExpression:
-    del component_spec  # Unused by ConcatOperator
-
     # ConcatOperator's proto version contains multiple placeholder expressions
     # as operands. For convenience, the Python version is implemented taking
     # only two operands.
+
     if self._right:
       # Resolve other expression
       if isinstance(self._right, Placeholder):
@@ -183,34 +242,12 @@ class _ProtoOperator(_PlaceholderOperator):
     self._proto_field_path.append(extra_path)
 
   def encode(
-      self,
-      sub_expression_pb: placeholder_pb2.PlaceholderExpression,
-      component_spec: Optional[types.ComponentSpec] = None
+      self, sub_expression_pb: placeholder_pb2.PlaceholderExpression
   ) -> placeholder_pb2.PlaceholderExpression:
     result = placeholder_pb2.PlaceholderExpression()
     result.operator.proto_op.expression.CopyFrom(sub_expression_pb)
-    result.operator.proto_op.proto_field_path.extend(self._proto_field_path)
-
-    # Attach proto descriptor if available through component spec.
-    if (component_spec and sub_expression_pb.placeholder.type ==
-        placeholder_pb2.Placeholder.EXEC_PROPERTY):
-      exec_property_name = sub_expression_pb.placeholder.key
-      if exec_property_name not in component_spec.PARAMETERS:
-        raise ValueError(
-            f"Can't find provided placeholder key {exec_property_name} in "
-            "component spec's exec properties. "
-            f"Available exec property keys: {component_spec.PARAMETERS.keys()}."
-        )
-      execution_param = component_spec.PARAMETERS[exec_property_name]
-      if not issubclass(execution_param.type, message.Message):
-        raise ValueError(
-            "Can't apply placehodler proto operator on non-proto type "
-            f"exec property. Got {execution_param.type}.")
-      fd_set = result.operator.proto_op.proto_schema.file_descriptors
-      for fd in proto_utils.gather_file_descriptors(
-          execution_param.type.DESCRIPTOR):
-        fd.CopyToProto(fd_set.file.add())
-
+    result.operator.proto_op.proto_field_path.extend(
+        self._proto_field_path)
     return result
 
 
@@ -231,15 +268,12 @@ class Placeholder(abc.ABC):
     self._operators.append(_ConcatOperator(left=left))
     return self
 
-  def encode(
-      self,
-      component_spec: Optional[types.ComponentSpec] = None
-  ) -> placeholder_pb2.PlaceholderExpression:
+  def encode(self) -> placeholder_pb2.PlaceholderExpression:
     result = placeholder_pb2.PlaceholderExpression()
     result.placeholder.type = self._type
     result.placeholder.key = self._key
     for op in self._operators:
-      result = op.encode(result, component_spec)
+      result = op.encode(result)
     return result
 
 
@@ -268,8 +302,14 @@ class ArtifactPlaceholder(Placeholder):
     return self
 
 
-class _ProtoAccessiblePlaceholder(Placeholder, abc.ABC):
-  """A base Placeholder for accessing proto fields using Python proto syntax."""
+class ExecPropertyPlaceholder(Placeholder):
+  """ExecProperty Placeholder represents an execution property.
+
+  Prefer to use exec_property(...) to create exec property placeholders.
+  """
+
+  def __init__(self, key: str):
+    super().__init__(placeholder_pb2.Placeholder.Type.EXEC_PROPERTY, key)
 
   def __getattr__(self, field_name: str):
     proto_access_field = f'.{field_name}'
@@ -286,144 +326,3 @@ class _ProtoAccessiblePlaceholder(Placeholder, abc.ABC):
     else:
       self._operators.append(_ProtoOperator(proto_access_field))
     return self
-
-
-class ExecPropertyPlaceholder(_ProtoAccessiblePlaceholder):
-  """ExecProperty Placeholder represents an execution property.
-
-  Prefer to use exec_property(...) to create exec property placeholders.
-  """
-
-  def __init__(self, key: str):
-    super().__init__(placeholder_pb2.Placeholder.Type.EXEC_PROPERTY, key)
-
-
-class RuntimeInfoPlaceholder(_ProtoAccessiblePlaceholder):
-  """RuntimeInfo Placeholder represents runtime information for a component.
-
-  Prefer to use runtime_info(...) to create RuntimeInfo placeholders.
-  """
-
-  def __init__(self, key: str):
-    if key not in _RUNTIME_INFO_KEYS:
-      raise ValueError(f'Got unsupported runtime info key: {key}.')
-    super().__init__(placeholder_pb2.Placeholder.Type.RUNTIME_INFO, key)
-
-
-def input(key: str) -> ArtifactPlaceholder:  # pylint: disable=redefined-builtin
-  """Returns a Placeholder that represents an input artifact.
-
-  Args:
-    key: The key of the input artifact.
-
-  Returns:
-    A Placeholder that supports
-      1. Rendering the whole MLMD artifact proto as text_format.
-         Example: input('model')
-      2. Accessing a specific index using [index], if multiple artifacts are
-         associated with the given key.
-         Example: input('model')[0]
-      3. Getting the URI of an artifact through .uri property.
-         Example: input('model').uri or input('model')[0].uri
-      4. Getting the URI of a specific split of an artifact using
-         .split_uri(split_name) method.
-         Example: input('examples')[0].split_uri('train')
-      5. Getting the value of a primitive artifact through .value property.
-         Example: input('primitive').value
-      6. Concatenating with other placeholders or strings.
-         Example: input('model').uri + '/model/' + exec_property('version')
-  """
-  return ArtifactPlaceholder(placeholder_pb2.Placeholder.Type.INPUT_ARTIFACT,
-                             key)
-
-
-def output(key: str) -> ArtifactPlaceholder:
-  """Returns a Placeholder that represents an output artifact.
-
-  It is the same as input(...) function, except it is for output artifacts.
-
-  Args:
-    key: The key of the output artifact.
-
-  Returns:
-    A Placeholder that supports
-      1. Rendering the whole artifact as text_format.
-         Example: output('model')
-      2. Accessing a specific index using [index], if multiple artifacts are
-         associated with the given key.
-         Example: output('model')[0]
-      3. Getting the URI of an artifact through .uri property.
-         Example: output('model').uri or output('model')[0].uri
-      4. Getting the URI of a specific split of an artifact using
-         .split_uri(split_name) method.
-         Example: output('examples')[0].split_uri('train')
-      5. Getting the value of a primitive artifact through .value property.
-         Example: output('primitive').value
-      6. Concatenating with other placeholders or strings.
-         Example: output('model').uri + '/model/' + exec_property('version')
-  """
-  return ArtifactPlaceholder(placeholder_pb2.Placeholder.Type.OUTPUT_ARTIFACT,
-                             key)
-
-
-def exec_property(key: str) -> ExecPropertyPlaceholder:
-  """Returns a Placeholder that represents an execution property.
-
-  Args:
-    key: The key of the output artifact.
-
-  Returns:
-    A Placeholder that supports
-      1. Rendering the value of an execution property at a given key.
-         Example: exec_property('version')
-      2. Rendering the whole proto or a proto field of an execution property,
-         if the value is a proto type.
-         The (possibly nested) proto field in a placeholder can be accessed as
-         if accessing a proto field in Python.
-         Example: exec_property('model_config').num_layers
-      3. Concatenating with other placeholders or strings.
-         Example: output('model').uri + '/model/' + exec_property('version')
-  """
-  return ExecPropertyPlaceholder(key)
-
-
-class RuntimeInfoKey(enum.Enum):
-  PLATFORM_CONFIG = 'platform_config'
-  STATEFUL_WORKING_DIR = 'stateful_working_dir'
-  EXECUTOR_OUTPUT_URI = 'executor_output_uri'
-  EXECUTOR_SPEC = 'executor_spec'
-  NODE_INFO = 'node_info'
-  PIPELINE_INFO = 'pipeline_info'
-
-
-_RUNTIME_INFO_KEYS = frozenset(key.value for key in RuntimeInfoKey)
-
-
-def runtime_info(key: str) -> RuntimeInfoPlaceholder:
-  """Returns a Placeholder that contains runtime information for component.
-
-  Args:
-    key: The key of the runtime information.
-
-  Returns:
-    Currently the invocation info includes following keys:
-    1. platform_config: A platform_config proto that contains platform specific
-       information.
-    2. stateful_working_dir: The directory can be used by the executor to store
-       working states.
-    3. executor_output_uri: The uri where the executor result should be written
-       to. The executors should use this uri to "return" ExecutorOutput to the
-       launcher.
-    4. executor_spec: The executor spec proto.
-    5. node_info: NodeInfo proto containing the node information.
-    6. pipeline_info: PipelineInfo proto containing the pipeline information.
-
-    Accessing a proto field can be represented as if accessing a proto field in
-    python.
-
-  Raises:
-    ValueError: If received unsupported key.
-  """
-  if key not in _RUNTIME_INFO_KEYS:
-    raise ValueError(f'Got unsupported  key: {key}.')
-  return RuntimeInfoPlaceholder(key)

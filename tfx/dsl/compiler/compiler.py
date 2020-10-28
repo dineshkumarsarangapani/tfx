@@ -221,8 +221,7 @@ class Compiler(object):
 
     # Step 6: Executor spec and optional driver spec for components
     if isinstance(tfx_node, base_component.BaseComponent):
-      executor_spec = tfx_node.executor_spec.encode(
-          component_spec=tfx_node.spec)
+      executor_spec = tfx_node.executor_spec.encode()
       deployment_config.executor_specs[tfx_node.id].Pack(executor_spec)
 
       # TODO(b/163433174): Remove specialized logic once generalization of

@@ -15,12 +15,14 @@
 
 import datetime
 import os
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Optional, Union
 
 from absl import logging
 import apache_beam as beam
+from tfx.dsl.compiler import compiler
 from tfx.dsl.compiler import constants
 from tfx.orchestration import metadata
+from tfx.orchestration import pipeline as pipeline_py
 from tfx.orchestration.portable import launcher
 from tfx.orchestration.portable import runtime_parameter_utils
 from tfx.orchestration.portable import tfx_runner
@@ -178,7 +180,8 @@ class BeamDagRunner(tfx_runner.TfxRunner):
     return (getattr(executable_spec, executable_spec.WhichOneof('spec'))
             if executable_spec else None)
 
-  def run(self, pipeline: pipeline_pb2.Pipeline) -> None:
+  def run(self, pipeline: Union[pipeline_pb2.Pipeline,
+                                pipeline_py.Pipeline]) -> None:
     """Deploys given logical pipeline on Beam.
 
     Args:
@@ -188,6 +191,10 @@ class BeamDagRunner(tfx_runner.TfxRunner):
     # and hence we avoid deploying the pipeline.
     if 'TFX_JSON_EXPORT_PIPELINE_ARGS_PATH' in os.environ:
       return
+
+    if isinstance(pipeline, pipeline_py.Pipeline):
+      c = compiler.Compiler()
+      pipeline = c.compile(pipeline)
 
     run_id = datetime.datetime.now().isoformat()
     # Substitute the runtime parameter to be a concrete run_id
