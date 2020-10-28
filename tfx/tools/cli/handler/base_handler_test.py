@@ -126,7 +126,7 @@ class BaseHandlerTest(tf.test.TestCase):
     }
     handler = FakeHandler(flags_dict)
     self.assertEqual(
-        os.path.join(os.environ['HOME'], 'engine', ''),
+        os.path.join(os.environ['HOME'], 'tfx', 'engine', ''),
         handler._get_handler_home())
 
   def testCheckDslRunnerAirflow(self):
@@ -162,7 +162,8 @@ class BaseHandlerTest(tf.test.TestCase):
   def testCheckPipelinExistenceNotRequired(self):
     flags_dict = {labels.ENGINE_FLAG: 'beam', labels.PIPELINE_NAME: 'pipeline'}
     handler = FakeHandler(flags_dict)
-    fileio.makedirs(os.path.join(os.environ['HOME'], 'beam', 'pipeline', ''))
+    fileio.makedirs(
+        os.path.join(os.environ['HOME'], 'tfx', 'beam', 'pipeline', ''))
     with self.assertRaises(SystemExit) as err:
       handler._check_pipeline_existence(
           flags_dict[labels.PIPELINE_NAME], required=False)

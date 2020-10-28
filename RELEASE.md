@@ -34,6 +34,9 @@
     ```
 
 ## Breaking changes
+*   Moved the directory that CLI stores pipeline information from
+    ${HOME}/${ORCHESTRATOR} to ${HOME}/tfx/${ORCHESTRATOR}. For example,
+    "~/kubeflow" was changed to "~/tfx/kubeflow".
 
 ## Deprecations
 
