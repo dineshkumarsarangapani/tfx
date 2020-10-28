@@ -14,11 +14,9 @@
 # limitations under the License.
 """Tests for tfx.dsl.placeholder.placeholder."""
 
-import os
 import tensorflow as tf
 from tfx.dsl.placeholder import placeholder as ph
 from tfx.proto.orchestration import placeholder_pb2
-from tfx.types import standard_component_specs
 
 from google.protobuf import text_format
 
@@ -159,17 +157,6 @@ class PlaceholderTest(tf.test.TestCase):
         }
     """)
 
-  def testProtoOperatorDescriptor(self):
-    test_pb_filepath = os.path.join(
-        os.path.dirname(__file__), 'testdata',
-        'proto_placeholder_operator.pbtxt')
-    with open(test_pb_filepath) as text_pb_file:
-      expected_pb = text_format.ParseLines(
-          text_pb_file, placeholder_pb2.PlaceholderExpression())
-    placeholder = ph.exec_property('splits_config').analyze[0]
-    component_spec = standard_component_specs.TransformSpec
-    self.assertProtoEquals(placeholder.encode(component_spec), expected_pb)
-
   def testComplicatedConcat(self):
     self._assert_placeholder_pb_equal(
         'google/' + ph.output('model').uri + '/model/' + '0/' +
@@ -212,19 +199,6 @@ class PlaceholderTest(tf.test.TestCase):
           }
         }
     """)
-
-  def testRuntimeInfoSimple(self):
-    self._assert_placeholder_pb_equal(
-        ph.runtime_info('platform_config'), """
-        placeholder {
-          type: RUNTIME_INFO
-          key: "platform_config"
-        }
-    """)
-
-  def testRuntimeInfoInvalidKey(self):
-    with self.assertRaises(ValueError):
-      ph.runtime_info('invalid_key')
 
 
 if __name__ == '__main__':
